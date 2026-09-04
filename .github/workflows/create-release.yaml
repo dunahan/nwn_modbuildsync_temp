@@ -100,7 +100,17 @@ jobs:
         run: |
           MODFILE=$(ls *.mod | head -n1)
           mkdir -p nwsync_output
-          ./nwsync_tools/nwn_nwsync_write nwsync_output/ "$MODFILE"
+          # --with-module: das Modul selbst wird mit ausgeliefert, nicht nur
+          # Haks/TLK. Laut Tool-Doku ausdruecklich NICHT fuer Persistent
+          # Worlds gedacht, sondern fuer die volle Modul-Distribution -
+          # genau unser Fall.
+          # --mod-uuid: feste UUIDv4, muss ueber alle Builds hinweg gleich
+          # bleiben (siehe Repo-Variable MODULE_UUID), sonst gilt jede
+          # Version als komplett neues Modul statt als Update.
+          ./nwsync_tools/nwn_nwsync_write \
+            --with-module \
+            --mod-uuid="${{ vars.MODULE_UUID }}" \
+            nwsync_output/ "$MODFILE"
           # Verhindert, dass GitHub Pages die Ordnerstruktur (data/, manifests/)
           # durch Jekyll filtert/verändert.
           touch nwsync_output/.nojekyll
