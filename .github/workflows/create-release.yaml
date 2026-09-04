@@ -75,6 +75,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download built module
         uses: actions/download-artifact@v4
         with:
@@ -114,6 +117,49 @@ jobs:
           # Verhindert, dass GitHub Pages die Ordnerstruktur (data/, manifests/)
           # durch Jekyll filtert/verändert.
           touch nwsync_output/.nojekyll
+
+      # NEU: repository.json am Repo-Root. Das ist die Datei, die der
+      # In-Game-Modul-Browser bei einer "Custom nwsync URL" tatsächlich
+      # abfragt (ROOTURL/repository.json) - nwn_nwsync_write erzeugt sie
+      # NICHT von selbst. Ohne diese Datei bleibt der Browser leer / 404,
+      # auch wenn data/manifests/latest korrekt sind.
+      - name: Generate repository.json
+        env:
+          MODULE_UUID: ${{ vars.MODULE_UUID }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, tomllib, pathlib
+
+          cfg = tomllib.loads(pathlib.Path("nasher.cfg").read_text())
+          pkg = cfg.get("package", {})
+
+          manifest_hash = pathlib.Path("nwsync_output/latest").read_text().strip()
+
+          repo = {
+              "format_version": 1,
+              "name": pkg.get("name", "module"),
+              "description": pkg.get("description", ""),
+              "modules": [
+                  {
+                      "uuid": os.environ["MODULE_UUID"],
+                      "name": pkg.get("name", "module"),
+                      "description": pkg.get("description", ""),
+                      "versions": [
+                          {
+                              "identifier": manifest_hash,
+                              "version": pkg.get("version", "0.1"),
+                              "created_at": int(time.time()),
+                          }
+                      ],
+                      "multiplayer": False,
+                  }
+              ],
+          }
+
+          pathlib.Path("nwsync_output/repository.json").write_text(
+              json.dumps(repo, indent=2)
+          )
+          PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
