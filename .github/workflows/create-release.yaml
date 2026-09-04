@@ -1,0 +1,50 @@
+name: create-release
+'on':
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  ci_build:
+    permissions:
+      contents: write
+
+    runs-on: ubuntu-latest
+    name: 'NWN:EE CI Build'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build module
+        uses: Ardesco/nasher4gh@v1
+        with:
+          args: '[''pack'', ''--default'', ''-usenwnscriptcomp'']'
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d-%H-%M')" >> "$GITHUB_OUTPUT"
+
+      - name: Zip module
+        id: zip
+        run: |
+          MODFILE=$(ls *.mod | head -n1)
+          if [ -z "$MODFILE" ]; then
+            echo "Kein .mod-File gefunden - Build fehlgeschlagen?"
+            exit 1
+          fi
+          ZIPFILE="${MODFILE%.mod}.zip"
+          zip -j "$ZIPFILE" "$MODFILE"
+          echo "zipfile=$ZIPFILE" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.date.outputs.date }}
+          name: ${{ steps.date.outputs.date }}
+          draft: false
+          prerelease: false
+          files: ${{ steps.zip.outputs.zipfile }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
