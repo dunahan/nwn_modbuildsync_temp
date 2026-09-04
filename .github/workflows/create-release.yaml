@@ -36,6 +36,7 @@ jobs:
           ZIPFILE="${MODFILE%.mod}.zip"
           zip -j "$ZIPFILE" "$MODFILE"
           echo "zipfile=$ZIPFILE" >> "$GITHUB_OUTPUT"
+          echo "modfile=$MODFILE" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -47,4 +48,68 @@ jobs:
           files: ${{ steps.zip.outputs.zipfile }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+
+      # NEU: das gebaute .mod als Artefakt weiterreichen, damit der
+      # nwsync-Job es ohne erneuten Build weiterverwenden kann.
+      - name: Upload module artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: module
+          path: ${{ steps.zip.outputs.modfile }}
+
+  # NEU: eigener Job, der aus dem gebauten Modul ein nwsync-Repository
+  # erzeugt und auf GitHub Pages veröffentlicht.
+  #
+  # Bewusst als eigener, unabhängiger Job gehalten: falls ihr später auf
+  # einen anderen Host wechselt (eigener Server, S3, ...), müsst ihr nur
+  # den Schritt "Deploy to GitHub Pages" ersetzen (z.B. gegen rsync/scp
+  # oder rclone) - der Build-Schritt mit nwn_nwsync_write bleibt gleich.
+  nwsync_pages:
+    needs: ci_build
+    runs-on: ubuntu-latest
+    name: 'NWSync Repo -> GitHub Pages'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download built module
+        uses: actions/download-artifact@v4
+        with:
+          name: module
+
+      - name: Get nwsync tools (neverwinter.nim)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir nwsync_tools
+          # Lädt das Linux-Release-Asset von niv/neverwinter.nim.
+          # Falls das Muster nicht greift: im Actions-Log den Assetnamen
+          # pruefen (https://github.com/niv/neverwinter.nim/releases) und
+          # --pattern entsprechend anpassen.
+          gh release download -R niv/neverwinter.nim --pattern "*linux*" -D nwsync_tools
+          cd nwsync_tools
+          for f in *.zip; do [ -e "$f" ] && unzip -o "$f"; done
+          for f in *.tar.gz; do [ -e "$f" ] && tar xzf "$f"; done
+          chmod +x nwn_nwsync_write 2>/dev/null || true
+          ls -la
+
+      - name: Build nwsync repository
+        run: |
+          MODFILE=$(ls *.mod | head -n1)
+          mkdir -p nwsync_output
+          ./nwsync_tools/nwn_nwsync_write nwsync_output/ "$MODFILE"
+          # Verhindert, dass GitHub Pages die Ordnerstruktur (data/, manifests/)
+          # durch Jekyll filtert/verändert.
+          touch nwsync_output/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: nwsync_output
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
