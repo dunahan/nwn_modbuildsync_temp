@@ -140,7 +140,7 @@ jobs:
               "format_version": 1,
               "name": pkg.get("name", "module"),
               "description": pkg.get("description", ""),
-              "contact": "https://github.com/dunahan",
+              "contact": f"https://github.com/{os.environ['REPO_OWNER']}",
               "header_image": "",
               "modules": [
                   {
