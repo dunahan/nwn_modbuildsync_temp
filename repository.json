@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "name": "Neues NWN Modul",
+  "description": "Kurze Beschreibung des Moduls",
+  "header_image": "assets/header_image.jpg",
+  "modules": [
+    {
+      "name": "Neues NWN Modul",
+      "description": "Kurze Beschreibung des Moduls",
+      "header_image": "assets/header_image.jpg",
+      "screenshots": [],
+      "versions": []
+    }
+  ],
+  "campaigns": [],
+  "adverts_label": "",
+  "adverts": []
+}
