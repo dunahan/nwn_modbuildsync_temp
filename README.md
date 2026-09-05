@@ -38,5 +38,8 @@ Following an example of the repository.json, which the workflow will create:
                       "multiplayer": False,
                   }
               ],
+              "campaigns": [],
+              "adverts_label": "",
+              "adverts": [],
           }
 ```

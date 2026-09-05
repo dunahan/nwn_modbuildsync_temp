@@ -160,6 +160,9 @@ jobs:
                       "multiplayer": False,
                   }
               ],
+              "campaigns": [],
+              "adverts_label": "",
+              "adverts": [],
           }
 
           pathlib.Path("nwsync_output/repository.json").write_text(
