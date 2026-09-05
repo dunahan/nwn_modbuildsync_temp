@@ -118,6 +118,11 @@ jobs:
           # durch Jekyll filtert/verändert.
           touch nwsync_output/.nojekyll
 
+          # Statisches Platzhalterbild mit ausliefern (liegt fest im Repo,
+          # kein generierter Build-Output).
+          mkdir -p nwsync_output/assets
+          cp assets/placeholder_header.png nwsync_output/assets/placeholder_header.png
+
       # NEU: repository.json am Repo-Root. Das ist die Datei, die der
       # In-Game-Modul-Browser bei einer "Custom nwsync URL" tatsächlich
       # abfragt (ROOTURL/repository.json) - nwn_nwsync_write erzeugt sie
@@ -141,14 +146,14 @@ jobs:
               "name": pkg.get("name", "module"),
               "description": pkg.get("description", ""),
               "contact": f"https://github.com/{os.environ['REPO_OWNER']}",
-              "header_image": "",
+              "header_image": "assets/placeholder_header.png",
               "modules": [
                   {
                       "uuid": os.environ["MODULE_UUID"],
                       "name": pkg.get("name", "module"),
                       "author": os.environ["REPO_OWNER"],
                       "description": pkg.get("description", ""),
-                      "header_image": "",
+                      "header_image": "assets/placeholder_header.png",
                       "screenshots": [],
                       "versions": [
                           {
