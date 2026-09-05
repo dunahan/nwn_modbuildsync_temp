@@ -99,6 +99,11 @@ jobs:
           chmod +x nwn_nwsync_write 2>/dev/null || true
           ls -la
 
+      # UUID kommt aus der Repo-Variable MODULE_UUID (Settings -> Secrets and
+      # variables -> Actions -> Variables). Muss ueber alle Builds hinweg
+      # gleich bleiben, sonst gilt jede Version als komplett neues Modul
+      # statt als Update. Einmalig generieren z.B. mit:
+      # python3 -c "import uuid; print(uuid.uuid4())"
       - name: Build nwsync repository
         run: |
           MODFILE=$(ls *.mod | head -n1)
@@ -107,9 +112,6 @@ jobs:
           # Haks/TLK. Laut Tool-Doku ausdruecklich NICHT fuer Persistent
           # Worlds gedacht, sondern fuer die volle Modul-Distribution -
           # genau unser Fall.
-          # --mod-uuid: feste UUIDv4, muss ueber alle Builds hinweg gleich
-          # bleiben (siehe Repo-Variable MODULE_UUID), sonst gilt jede
-          # Version als komplett neues Modul statt als Update.
           ./nwsync_tools/nwn_nwsync_write \
             --with-module \
             --mod-uuid="${{ vars.MODULE_UUID }}" \
@@ -123,52 +125,35 @@ jobs:
           mkdir -p nwsync_output/assets
           cp assets/header_image.jpg nwsync_output/assets/header_image.jpg
 
-      # NEU: repository.json am Repo-Root. Das ist die Datei, die der
-      # In-Game-Modul-Browser bei einer "Custom nwsync URL" tatsächlich
-      # abfragt (ROOTURL/repository.json) - nwn_nwsync_write erzeugt sie
-      # NICHT von selbst. Ohne diese Datei bleibt der Browser leer / 404,
-      # auch wenn data/manifests/latest korrekt sind.
-      - name: Generate repository.json
+      # repository.json (Build-Output in nwsync_output/) wird aus der im
+      # Repo gepflegten Vorlage repository.json (Repo-Root) gefuellt - nur
+      # die build-zeit-abhaengigen Werte (UUID aus der Repo-Variable,
+      # Versions-Hash, Zeitstempel, Kontakt/Autor aus dem Repo-Besitzer)
+      # kommen dazu.
+      - name: Fill in repository.json with build data
         env:
           MODULE_UUID: ${{ vars.MODULE_UUID }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           python3 - <<'PY'
-          import json, os, time, tomllib, pathlib
+          import json, os, time, pathlib
 
-          cfg = tomllib.loads(pathlib.Path("nasher.cfg").read_text())
-          pkg = cfg.get("package", {})
+          repo = json.loads(pathlib.Path("repository.json").read_text())
 
           manifest_hash = pathlib.Path("nwsync_output/latest").read_text().strip()
+          created_at = int(time.time())
+          version_label = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(created_at))
 
-          repo = {
-              "format_version": 1,
-              "name": pkg.get("name", "module"),
-              "description": pkg.get("description", ""),
-              "contact": f"https://github.com/{os.environ['REPO_OWNER']}",
-              "header_image": "assets/header_image.jpg",
-              "modules": [
-                  {
-                      "uuid": os.environ["MODULE_UUID"],
-                      "name": pkg.get("name", "module"),
-                      "author": os.environ["REPO_OWNER"],
-                      "description": pkg.get("description", ""),
-                      "header_image": "assets/header_image.jpg",
-                      "screenshots": [],
-                      "versions": [
-                          {
-                              "identifier": manifest_hash,
-                              "version": pkg.get("version", "0.1"),
-                              "created_at": int(time.time()),
-                          }
-                      ],
-                      "multiplayer": False,
-                  }
-              ],
-              "campaigns": [],
-              "adverts_label": "",
-              "adverts": [],
-          }
+          repo["contact"] = f"https://github.com/{os.environ['REPO_OWNER']}"
+          repo["modules"][0]["uuid"] = os.environ["MODULE_UUID"]
+          repo["modules"][0]["author"] = os.environ["REPO_OWNER"]
+          repo["modules"][0]["versions"] = [
+              {
+                  "identifier": manifest_hash,
+                  "version": version_label,
+                  "created_at": created_at,
+              }
+          ]
 
           pathlib.Path("nwsync_output/repository.json").write_text(
               json.dumps(repo, indent=2)
