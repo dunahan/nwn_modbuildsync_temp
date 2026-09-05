@@ -14,7 +14,7 @@ This should be a UUIDv4, e.g. generated using python3 -c \"import uuid; print(uu
 
 There's already a UUIDv4 as a variable available (98446a6a-84df-42b6-948d-37cbfbe89394), therefore it is necessary to override it with another one.
 
-Added a placeholder image under assets/. It's advised to change this to a suitable image later.
+Added a placeholder image under assets/ as header_image.jpg. It's advised to change this to a suitable image later.
 
 Following an example of the repository.json, which the workflow will create:
 
@@ -24,14 +24,14 @@ Following an example of the repository.json, which the workflow will create:
               "name": pkg.get("name", "module"),
               "description": pkg.get("description", ""),
               "contact": f"https://github.com/{os.environ['REPO_OWNER']}",
-              "header_image": "assets/placeholder_header.png",
+              "header_image": "assets/header_image.jpg",
               "modules": [
                   {
                       "uuid": os.environ["MODULE_UUID"],
                       "name": pkg.get("name", "module"),
                       "author": os.environ["REPO_OWNER"],
                       "description": pkg.get("description", ""),
-                      "header_image": "assets/placeholder_header.png",
+                      "header_image": "assets/header_image.jpg",
                       "screenshots": [],
                       "versions": [
                           {
