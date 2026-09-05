@@ -126,6 +126,7 @@ jobs:
       - name: Generate repository.json
         env:
           MODULE_UUID: ${{ vars.MODULE_UUID }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           python3 - <<'PY'
           import json, os, time, tomllib, pathlib
@@ -139,11 +140,16 @@ jobs:
               "format_version": 1,
               "name": pkg.get("name", "module"),
               "description": pkg.get("description", ""),
+              "contact": f"https://github.com/{os.environ['REPO_OWNER']}",
+              "header_image": "",
               "modules": [
                   {
                       "uuid": os.environ["MODULE_UUID"],
                       "name": pkg.get("name", "module"),
+                      "author": os.environ["REPO_OWNER"],
                       "description": pkg.get("description", ""),
+                      "header_image": "",
+                      "screenshots": [],
                       "versions": [
                           {
                               "identifier": manifest_hash,
