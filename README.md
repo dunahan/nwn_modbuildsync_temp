@@ -31,7 +31,7 @@ On every push to `main`, the workflow:
    - `modules[0].name`, `modules[0].description`
 
 5. **Replace the header image (optional)**
-   Swap out `assets/header_image.jpg` for your own artwork. Any image works — it's referenced purely by relative path.
+   Swap out `assets/header_image.jpg` for your own artwork. The in-game browser expects **1920×600**; anything else gets centered and fit to the window instead of filling it.
 
 ---
 
