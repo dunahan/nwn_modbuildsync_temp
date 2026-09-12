@@ -10,16 +10,72 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      NWNSERVER_VERSION: "8193.37-17"
+      NWN_ROOT: ${{ github.workspace }}/nwn
+      NWN_HOME: ${{ github.workspace }}/nwn
+
     runs-on: ubuntu-latest
     name: 'NWN:EE CI Build'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      # nasher/nwnsc brauchen zum Kompilieren der Skripte einen Teil der
+      # offiziellen NWN-Serverdaten (nwscript.nss, Standard-Includes etc.).
+      # Gleiche offizielle Quelle, die auch das nasher4gh-Docker-Image nutzt:
+      # https://github.com/Ardesco/nasher4gh-images/blob/main/Dockerfile
+      - name: Cache NWN server data
+        id: cache-nwn
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.NWN_ROOT }}
+          key: nwn-server-${{ env.NWNSERVER_VERSION }}
+
+      - name: Download NWN server data
+        if: steps.cache-nwn.outputs.cache-hit != 'true'
+        run: |
+          wget -q "https://nwn.beamdog.net/downloads/nwnee-dedicated-${NWNSERVER_VERSION}.zip"
+          mkdir -p "$NWN_ROOT"
+          unzip -q "nwnee-dedicated-${NWNSERVER_VERSION}.zip" -d "$NWN_ROOT"
+          rm "nwnee-dedicated-${NWNSERVER_VERSION}.zip"
+
+      # nasher nutzt seit Version 1.0.0 standardmaessig neverwinter.nim's
+      # nwn_script_comp als Compiler statt des aelteren, separaten nwnsc -
+      # genau der Compiler, den du hier haben willst, da er mit EE aktiv
+      # weiterentwickelt wird. Ein separater Download ist nicht noetig:
+      # "nimble install nasher" baut neverwinter.nim (und damit
+      # nwn_script_comp) als Abhaengigkeit automatisch mit.
+      - name: Setup Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: stable
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Cache fuer ~/.nimble: nasher + neverwinter.nim werden aus dem
+      # Quellcode kompiliert, das kostet beim allerersten Lauf ein paar
+      # Minuten. Mit Cache-Treffer faellt das danach wieder weg.
+      - name: Cache nimble packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nimble
+          key: ${{ runner.os }}-nimble-nasher
+
+      - name: Install nasher
+        run: nimble install nasher -y
+
+      # nimble hat beim Installieren von nasher auch dessen Abhaengigkeit
+      # neverwinter.nim mitgebaut - darunter nwn_nwsync_write, das der
+      # nwsync_pages-Job weiter unten braucht. Wird hier als Artefakt
+      # weitergereicht statt es dort nochmal separat zu laden/bauen.
+      - name: Upload nwsync tools artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: nwsync-tools
+          path: ~/.nimble/bin/nwn_nwsync_write
 
       - name: Build module
-        uses: Ardesco/nasher4gh@v1
-        with:
-          args: '[''pack'', ''--default'', ''-usenwnscriptcomp'']'
+        run: nasher pack --default
 
       - name: Get current date
         id: date
@@ -39,7 +95,7 @@ jobs:
           echo "modfile=$MODFILE" >> "$GITHUB_OUTPUT"
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.date.outputs.date }}
           name: ${{ steps.date.outputs.date }}
@@ -52,7 +108,7 @@ jobs:
       # NEU: das gebaute .mod als Artefakt weiterreichen, damit der
       # nwsync-Job es ohne erneuten Build weiterverwenden kann.
       - name: Upload module artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: module
           path: ${{ steps.zip.outputs.modfile }}
@@ -76,28 +132,21 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download built module
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: module
 
-      - name: Get nwsync tools (neverwinter.nim)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir nwsync_tools
-          # Lädt das Linux-Release-Asset von niv/neverwinter.nim.
-          # Falls das Muster nicht greift: im Actions-Log den Assetnamen
-          # pruefen (https://github.com/niv/neverwinter.nim/releases) und
-          # --pattern entsprechend anpassen.
-          gh release download -R niv/neverwinter.nim --pattern "*linux*" -D nwsync_tools
-          cd nwsync_tools
-          for f in *.zip; do [ -e "$f" ] && unzip -o "$f"; done
-          for f in *.tar.gz; do [ -e "$f" ] && tar xzf "$f"; done
-          chmod +x nwn_nwsync_write 2>/dev/null || true
-          ls -la
+      - name: Download nwsync tools
+        uses: actions/download-artifact@v8
+        with:
+          name: nwsync-tools
+          path: nwsync_tools
+
+      - name: Make nwsync tools executable
+        run: chmod +x nwsync_tools/nwn_nwsync_write
 
       # UUID kommt aus der Repo-Variable MODULE_UUID (Settings -> Secrets and
       # variables -> Actions -> Variables). Muss ueber alle Builds hinweg
@@ -161,10 +210,10 @@ jobs:
           PY
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: nwsync_output
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
