@@ -6,3 +6,6 @@
 
 # Ignore the nasher directory
 .nasher/
+
+# Ignore the nwsync directory
+nwsync_output
