@@ -5,8 +5,8 @@ A GitHub template repository for building [Neverwinter Nights: Enhanced Edition]
 On every push to `main`, the workflow:
 
 1. **Builds** `nasher` itself from source (via `nimble`) and packs the module from `src/` (`nasher pack --default`), using nasher's built-in [`nwn_script_comp`](https://github.com/niv/neverwinter.nim) compiler — actively maintained alongside EE, unlike the older standalone `nwnsc`
-2. **Releases** the packed `.mod` as a dated GitHub Release
-3. **Publishes** the module as an `nwsync` repository via GitHub Pages, so players can install and update it directly from inside the game — no manual `.mod` distribution needed
+2. **Releases** the packed `.mod`/`.hak`/`.tlk` as a dated GitHub Release
+3. **Publishes** the module as an `nwsync` repository via GitHub Pages, so players can install and update it directly from inside the game — no manual `.mod`/`.hak`/`.tlk` distribution needed
 
 ---
 
@@ -51,7 +51,7 @@ The game will list your module, and can install or update it directly from there
 
 | Path | Purpose |
 |---|---|
-| `src/` | nasher module source (compiled into the `.mod`) |
+| `src/` | nasher module source (compiled into the `.mod`/`.hak`/`.tlk`) |
 | `nasher.cfg` | nasher packaging configuration |
 | `repository.json` | Hand-maintained catalog entry for the in-game module browser |
 | `assets/header_image.jpg` | Preview image shown in the in-game browser |
