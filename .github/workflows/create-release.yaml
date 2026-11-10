@@ -177,11 +177,11 @@ jobs:
 
           # Execute nwn_nwsync_write with the module and all discovered HAKs/TLKs
           ./nwsync_tools/nwn_nwsync_write \
+            --path . \
             --with-module \
             --mod-uuid="${{ vars.MODULE_UUID }}" \
             nwsync_output/ \
             "$MODFILE" \
-            "${ADDITIONAL_FILES[@]}"
 
           # Prevents GitHub Pages from filtering/modifying the folder
           # structure (data/, manifests/) via Jekyll.
