@@ -21,10 +21,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # nasher/nwnsc brauchen zum Kompilieren der Skripte einen Teil der
-      # offiziellen NWN-Serverdaten (nwscript.nss, Standard-Includes etc.).
-      # Gleiche offizielle Quelle, die auch das nasher4gh-Docker-Image nutzt:
-      # https://github.com/Ardesco/nasher4gh-images/blob/main/Dockerfile
+      # nasher requires a portion of the official NWN server data
+      # (nwscript.nss, standard includes, etc.) to compile the scripts.
       - name: Cache NWN server data
         id: cache-nwn
         uses: actions/cache@v5
@@ -40,21 +38,17 @@ jobs:
           unzip -q "nwnee-dedicated-${NWNSERVER_VERSION}.zip" -d "$NWN_ROOT"
           rm "nwnee-dedicated-${NWNSERVER_VERSION}.zip"
 
-      # nasher nutzt seit Version 1.0.0 standardmaessig neverwinter.nim's
-      # nwn_script_comp als Compiler statt des aelteren, separaten nwnsc -
-      # genau der Compiler, den du hier haben willst, da er mit EE aktiv
-      # weiterentwickelt wird. Ein separater Download ist nicht noetig:
-      # "nimble install nasher" baut neverwinter.nim (und damit
-      # nwn_script_comp) als Abhaengigkeit automatisch mit.
+      # "nimble install nasher" automatically builds neverwinter.nim (and thus
+      # nwn_script_comp) as a dependency.
       - name: Setup Nim
         uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: stable
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Cache fuer ~/.nimble: nasher + neverwinter.nim werden aus dem
-      # Quellcode kompiliert, das kostet beim allerersten Lauf ein paar
-      # Minuten. Mit Cache-Treffer faellt das danach wieder weg.
+      # Cache for ~/.nimble: nasher + neverwinter.nim are compiled from
+      # source code, which takes a few minutes during the very first run.
+      # With a cache hit, this step is skipped thereafter..
       - name: Cache nimble packages
         uses: actions/cache@v5
         with:
@@ -64,10 +58,10 @@ jobs:
       - name: Install nasher
         run: nimble install nasher -y
 
-      # nimble hat beim Installieren von nasher auch dessen Abhaengigkeit
-      # neverwinter.nim mitgebaut - darunter nwn_nwsync_write, das der
-      # nwsync_pages-Job weiter unten braucht. Wird hier als Artefakt
-      # weitergereicht statt es dort nochmal separat zu laden/bauen.
+      # When installing 'nasher', 'nimble' also built its dependency, 'neverwinter.nim'
+      # —including 'nwn_nwsync_write', which the 'nwsync_pages' job (further down)
+      # requires. It is passed along here as an artifact, avoiding the need to download
+      # or build it separately in that subsequent step.
       - name: Upload nwsync tools artifact
         uses: actions/upload-artifact@v7
         with:
@@ -75,24 +69,35 @@ jobs:
           path: ~/.nimble/bin/nwn_nwsync_write
 
       - name: Build module
-        run: nasher pack --default
+        run: nasher pack zip
 
       - name: Get current date
         id: date
         run: echo "date=$(date +'%Y-%m-%d-%H-%M')" >> "$GITHUB_OUTPUT"
 
-      - name: Zip module
+      # list up all created files and pack them up
+      - name: Zip module contents
         id: zip
         run: |
-          MODFILE=$(ls *.mod | head -n1)
-          if [ -z "$MODFILE" ]; then
-            echo "Kein .mod-File gefunden - Build fehlgeschlagen?"
+          shopt -s nullglob
+          MODFILES=(*.mod)
+          if [ ${#MODFILES[@]} -eq 0 ]; then
+            echo "No .mod file found – did the build fail?"
             exit 1
           fi
+          MODFILE="${MODFILES[0]}"
           ZIPFILE="${MODFILE%.mod}.zip"
-          zip -j "$ZIPFILE" "$MODFILE"
+          
+          # Start with the base list using the .mod file
+          FILES=("$MODFILE")
+          
+          # Dynamically add existing .hak and .tlk files
+          for f in *.hak *.tlk; do
+            FILES+=("$f")
+          done
+          
+          zip -j "$ZIPFILE" "${FILES[@]}"
           echo "zipfile=$ZIPFILE" >> "$GITHUB_OUTPUT"
-          echo "modfile=$MODFILE" >> "$GITHUB_OUTPUT"
 
       - name: Create release
         uses: softprops/action-gh-release@v3
@@ -105,21 +110,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # NEU: das gebaute .mod als Artefakt weiterreichen, damit der
-      # nwsync-Job es ohne erneuten Build weiterverwenden kann.
+      # Pass on the built module files so that the nwsync job can reuse them.
       - name: Upload module artifact
         uses: actions/upload-artifact@v7
         with:
-          name: module
-          path: ${{ steps.zip.outputs.modfile }}
+          name: module-build-files
+          path: |
+            *.mod
+            *.hak
+            *.tlk
 
-  # NEU: eigener Job, der aus dem gebauten Modul ein nwsync-Repository
-  # erzeugt und auf GitHub Pages veröffentlicht.
+  # NEW: A separate job that creates an nwsync repository from the built module
+  # and publishes it to GitHub Pages.
   #
-  # Bewusst als eigener, unabhängiger Job gehalten: falls ihr später auf
-  # einen anderen Host wechselt (eigener Server, S3, ...), müsst ihr nur
-  # den Schritt "Deploy to GitHub Pages" ersetzen (z.B. gegen rsync/scp
-  # oder rclone) - der Build-Schritt mit nwn_nwsync_write bleibt gleich.
+  # Intentionally kept as a separate, independent job: should you decide to
+  # switch to a different host later (e.g., your own server, S3, etc.), you
+  # only need to replace the "Deploy to GitHub Pages" step (e.g., with rsync/scp
+  # or rclone)—the build step using nwn_nwsync_write remains the same.
   nwsync_pages:
     needs: ci_build
     runs-on: ubuntu-latest
@@ -137,7 +144,7 @@ jobs:
       - name: Download built module
         uses: actions/download-artifact@v8
         with:
-          name: module
+          name: module-build-files
 
       - name: Download nwsync tools
         uses: actions/download-artifact@v8
@@ -148,37 +155,46 @@ jobs:
       - name: Make nwsync tools executable
         run: chmod +x nwsync_tools/nwn_nwsync_write
 
-      # UUID kommt aus der Repo-Variable MODULE_UUID (Settings -> Secrets and
-      # variables -> Actions -> Variables). Muss ueber alle Builds hinweg
-      # gleich bleiben, sonst gilt jede Version als komplett neues Modul
-      # statt als Update. Einmalig generieren z.B. mit:
+      # The UUID comes from the repository variable MODULE_UUID (Settings -> Secrets and
+      # variables -> Actions -> Variables). It must remain the same across all builds;
+      # otherwise, each version will be treated as an entirely new module
+      # rather than an update. Generate it once, for example, using:
       # python3 -c "import uuid; print(uuid.uuid4())"
       - name: Build nwsync repository
         run: |
           MODFILE=$(ls *.mod | head -n1)
           mkdir -p nwsync_output
-          # --with-module: das Modul selbst wird mit ausgeliefert, nicht nur
-          # Haks/TLK. Laut Tool-Doku ausdruecklich NICHT fuer Persistent
-          # Worlds gedacht, sondern fuer die volle Modul-Distribution -
-          # genau unser Fall.
+
+          # Collect all .hak and .tlk files in the workspace
+          ADDITIONAL_FILES=()
+          for f in *.hak *.tlk; do
+            if [ -f "$f" ]; then
+              ADDITIONAL_FILES+=("$f")
+            fi
+          done
+
+          # Execute nwn_nwsync_write with the module and all discovered HAKs/TLKs
           ./nwsync_tools/nwn_nwsync_write \
             --with-module \
             --mod-uuid="${{ vars.MODULE_UUID }}" \
-            nwsync_output/ "$MODFILE"
-          # Verhindert, dass GitHub Pages die Ordnerstruktur (data/, manifests/)
-          # durch Jekyll filtert/verändert.
+            nwsync_output/ \
+            "$MODFILE" \
+            "${ADDITIONAL_FILES[@]}"
+
+          # Prevents GitHub Pages from filtering/modifying the folder
+          # structure (data/, manifests/) via Jekyll.
           touch nwsync_output/.nojekyll
 
-          # Statisches Platzhalterbild mit ausliefern (liegt fest im Repo,
-          # kein generierter Build-Output).
+          # Include a static placeholder image (stored permanently in the repo;
+          # not part of the generated build output).
           mkdir -p nwsync_output/assets
           cp assets/header_image.jpg nwsync_output/assets/header_image.jpg
 
-      # repository.json (Build-Output in nwsync_output/) wird aus der im
-      # Repo gepflegten Vorlage repository.json (Repo-Root) gefuellt - nur
-      # die build-zeit-abhaengigen Werte (UUID aus der Repo-Variable,
-      # Versions-Hash, Zeitstempel, Kontakt/Autor aus dem Repo-Besitzer)
-      # kommen dazu.
+      # repository.json (build output in nwsync_output/) is populated using the
+      # repository.json template maintained within the repository (at the repo root) —
+      # with the addition of only those values that depend on the build time
+      # (UUID from a repository variable, version hash, timestamp, and
+      # contact/author information derived from the repository owner).
       - name: Fill in repository.json with build data
         env:
           MODULE_UUID: ${{ vars.MODULE_UUID }}

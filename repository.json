@@ -1,12 +1,12 @@
 {
   "format_version": 1,
-  "name": "Neues NWN Modul",
-  "description": "Kurze Beschreibung des Moduls",
+  "name": "Template for a nwsynced NWN module",
+  "description": "Short description of the module",
   "header_image": "assets/header_image.jpg",
   "modules": [
     {
-      "name": "Neues NWN Modul",
-      "description": "Kurze Beschreibung des Moduls",
+      "name": "Template for a nwsynced NWN module",
+      "description": "Short description of the module",
       "header_image": "assets/header_image.jpg",
       "screenshots": [],
       "versions": []
