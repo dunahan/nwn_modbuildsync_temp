@@ -22,7 +22,7 @@
   },
   "Mod_CustomTlk": {
     "type": "cexostring",
-    "value": "module"
+    "value": "talkfile"
   },
   "Mod_CutSceneList": {
     "type": "list",
@@ -85,7 +85,7 @@
         "__struct_id": 8,
         "Mod_Hak": {
           "type": "cexostring",
-          "value": "module"
+          "value": "content"
         }
       }
     ]
