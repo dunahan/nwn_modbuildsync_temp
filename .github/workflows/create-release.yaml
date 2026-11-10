@@ -146,7 +146,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: module-build-files
-          path: ./
+          path: .
 
       - name: Download nwsync tools
         uses: actions/download-artifact@v8
