@@ -68,11 +68,9 @@ jobs:
           name: nwsync-tools
           path: ~/.nimble/bin/nwn_nwsync_write
 
+      # this builds the group specified in nasher.cfg
       - name: Build module and components
-        run: |
-          nasher pack default
-          nasher pack hak
-          nasher pack tlk
+        run: nasher pack zip
 
       - name: Get current date
         id: date
